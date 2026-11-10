@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>도쿄 숙소 후보</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 넓은 화면은 왼쪽 지도(고정) + 오른쪽 카드 목록, 좁은 화면은 지도 위 · 목록 아래 */
+:root{
+  --bg:#f5f7f6; --surface:#ffffff; --fg:#17201d; --muted:#5d6b66; --line:#dbe3e0;
+  --accent:#1f7a4d; --accent-soft:#e3f1ea; --warn:#a4421b; --warn-soft:#fbe9e1; --note:#8a6a00; --note-soft:#fbf3d6;
+  --pin-bk:#1d4f91; --pin-ab:#c2410c; --pin-over:#8a9590; --pin-text:#ffffff;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#111715; --surface:#19211e; --fg:#e6eeea; --muted:#9aaba4; --line:#2b3632;
+  --accent:#5cc28e; --accent-soft:#1d3329; --warn:#f08a5d; --warn-soft:#3a2219; --note:#e6c35a; --note-soft:#332b12;
+  --pin-bk:#3f78c9; --pin-ab:#e0682e; --pin-over:#6b7672; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.page{max-width:1400px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+header h1{font-size:1.5rem;margin:0;letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--muted)}
+.main{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:980px){.main{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}.mapcol{position:sticky;top:16px}}
+.mapcol{display:grid;gap:8px;min-width:0}
+#map{height:62vh;min-height:360px;border-radius:10px;border:1px solid var(--line);z-index:0}
+@media (min-width:980px){#map{height:calc(100vh - 140px)}}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:5px}
+.listcol{display:grid;gap:12px;min-width:0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar span{color:var(--muted);font-size:.85rem;margin:0 2px 0 6px}
+.bar span:first-child{margin-left:0}
+.bar button{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:6px 12px;border-radius:999px;cursor:pointer}
+.bar button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{color:var(--muted);font-size:.85rem;margin:0}
+.list{display:grid;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:9px;min-width:0;scroll-margin-top:16px;transition:box-shadow .3s}
+.card.hl{box-shadow:0 0 0 3px var(--accent)}
+.top{display:flex;gap:10px;align-items:flex-start}
+.badge{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-num);font-size:.85rem;color:var(--pin-text);background:var(--pin-bk);border:0;cursor:pointer}
+.badge.ab{background:var(--pin-ab)} .badge.over{background:var(--pin-over)}
+.ttl{display:grid;gap:2px;min-width:0;flex:1}
+.name{font-weight:700;font-size:1.02rem;color:var(--fg);text-decoration:none;border-bottom:1px solid var(--accent);overflow-wrap:anywhere;justify-self:start}
+.name:hover{color:var(--accent)}
+.site{font-size:.72rem;letter-spacing:.05em;color:var(--muted)}
+.price{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:1.2rem;font-weight:500}
+.price small{display:block;font-family:var(--f-body);font-size:.78rem;color:var(--muted);font-weight:400}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:0}
+.facts dt{font-size:.75rem;color:var(--muted)}
+.facts dd{margin:0 0 4px;overflow-wrap:anywhere}
+.feat{font-size:.88rem;color:var(--muted);margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:.78rem;padding:2px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+.chip.w{background:var(--warn-soft);color:var(--warn)} .chip.n{background:var(--note-soft);color:var(--note)}
+.notes{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+.notes h2{font-size:1rem;margin:0 0 6px}
+.notes ul{margin:0;padding-left:1.2em;display:grid;gap:4px}
+/* 지도 핀 */
+.mk{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.mk span{transform:rotate(45deg);color:#fff;font:700 13px/1 "IBM Plex Mono",monospace}
+.mk.bk{background:var(--pin-bk)} .mk.ab{background:var(--pin-ab)} .mk.over{background:var(--pin-over)}
+.leaflet-popup-content{font-family:var(--f-body);font-size:13px;line-height:1.45}
+.leaflet-popup-content b{font-size:14px}
+.leaflet-popup-content a{color:#1f7a4d}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>도쿄 숙소 후보</h1>
+    <p>최종 후보 6곳 · 3박 총액 싼 순 · 번호는 18곳 비교 때 번호 그대로</p>
+  </header>
+  <div class="main">
+    <section class="mapcol" aria-label="숙소 위치 지도">
+      <div id="map"></div>
+      <div class="legend">
+        <span><i style="background:var(--pin-bk)"></i>Booking (정확한 위치)</span>
+        <span><i style="background:var(--pin-ab)"></i>에어비앤비 (대략 위치)</span>
+      </div>
+    </section>
+    <section class="listcol">
+      <div class="bar" role="group" aria-label="필터">
+        <span>사이트</span>
+        <button data-f="all" aria-pressed="true">전체</button>
+        <button data-f="Booking" aria-pressed="false">Booking</button>
+        <button data-f="에어비앤비" aria-pressed="false">에어비앤비</button>
+        <span>조건</span>
+        <button id="f-ok" aria-pressed="false">확인 필요 없는 곳만</button>
+      </div>
+      <p class="count" id="count"></p>
+      <div class="list" id="list"></div>
+      <section class="notes">
+        <h2>보는 법</h2>
+        <ul>
+          <li>가격은 3박 총액(Booking은 세금·기타 요금 포함)이고 조회 시점 기준이라 바뀔 수 있습니다.</li>
+          <li>이름을 누르면 예약 페이지가 열립니다. 날짜와 인원은 직접 넣으세요. '선택' 표시가 있으면 적힌 객실을 골라야 침대 2개짜리입니다.</li>
+          <li>번호 동그라미를 누르면 지도가 그 숙소로 이동합니다. 지도 핀을 누르면 카드로 이동합니다.</li>
+          <li><b>회원가</b>는 Booking.com 로그인 시 나오는 10% 할인 가격입니다.</li>
+          <li>에어비앤비 '24시간 무료 취소'는 예약 후 24시간 안에만 전액 환불됩니다.</li>
+          <li>에어비앤비 위치는 사이트가 공개하는 대략 위치라 실제와 수백 미터 다를 수 있습니다.</li>
+        </ul>
+      </section>
+      <section class="notes">
+        <h2>후보 고른 과정</h2>
+        <ul>
+          <li>Booking·에어비앤비 찜 목록에서 예약 가능, 침대 2개, 전용 욕실, 엘리베이터 없으면 3층 이하 조건으로 18곳을 추린 뒤 6곳을 골랐습니다.</li>
+        </ul>
+      </section>
+    </section>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const bk=s=>"https://www.booking.com/hotel/jp/"+s+".ko.html";
+const ab=id=>"https://www.airbnb.co.kr/rooms/"+id;
+const H=[
+ {n:"Ustay 닛포리",s:"Booking",u:bk("yoosuu-nippori1"),p:249999,pt:"₩249,999",ll:[35.73024,139.77434],loc:"아라카와구 히가시닛포리",bed:"싱글 2 · 17㎡ · 욕조",bath:"전용",fl:"확인 못 함",c:"환불 불가",r:"7.3 (233)",f:"가장 쌈. 평점은 목록 중 가장 낮은 편.",chips:[["w","환불 불가"],["n","회원가"]],chk:1},
+ {n:"이케부쿠로 하우스 트리플룸",s:"Booking",u:bk("aprilhouseikebukuro3f"),p:283003,pt:"₩283,003",alt:"무료 취소 요금: ₩314,448 (12/2 전) · ₩345,892 (12/8 전)",ll:[35.73975,139.72810],loc:"도시마구 니시스가모 (3층)",bed:"싱글 3 · 30㎡ · 주방",bath:"전용",fl:"3층, 엘리베이터 확인 못 함",c:"가장 싼 요금은 환불 불가",r:"9.3 (26) · 청결 9.6",f:"11.11 세일 40%. 넓고 평점 최고.",chips:[["w","최저가는 환불 불가"],["a","세일 중"]],chk:0},
+ {n:"신주쿠 1분 오픈 세일 숙소",s:"에어비앤비",u:ab("37582160"),p:289328,pt:"₩289,328",ll:[35.69624,139.70694],loc:"신주쿠구 (가부키초·히가시신주쿠 근처)",bed:"싱글 2 (100×200)",bath:"전용 (샤워·화장실)",fl:"1층",c:"12/4 전 무료 취소",r:"4.54 (111)",f:"역 1-2분. 후기에 1층이라 환기·냄새 불만 1건.",chips:[["a","12/4까지 무료 취소"]],chk:0},
+ {n:"한 정거장 신주쿠역 (하츠다이)",s:"에어비앤비",u:ab("930722615964382666"),p:296479,pt:"₩296,479",ll:[35.6859,139.68037],loc:"시부야구 하츠다이 (역 도보 10분)",bed:"싱글 2",bath:"전용",fl:"엘리베이터 없음, 층 확인 필요",c:"24시간 내 무료 취소",r:"4.77 (544)",f:"후기 수 가장 많음. 상점가 1분.",chips:[["w","엘리베이터 없음 · 층 확인"],["n","24시간 무료 취소"]],chk:1},
+ {n:"HUJI 신주쿠 하우스",s:"Booking",u:bk("huji-shinjuku-house"),p:301665,pt:"₩301,665",ll:[35.69541,139.71974],loc:"신주쿠구 스미요시초",bed:"싱글 2 · 17㎡ · 주방",bath:"전용",fl:"확인 못 함",c:"환불 불가",r:"7.4 (210) · 청결 7.8",f:"같은 가격에 더블룸도 있으니 트윈룸으로 골라야 함.",chips:[["w","환불 불가"],["n","회원가"],["n","'디럭스 트윈룸' 선택"]],chk:1},
+ {n:"트윈룸 1 정거장 신주쿠",s:"에어비앤비",u:ab("12899094"),p:312228,pt:"₩312,228",ll:[35.68447,139.68412],loc:"시부야구 (신주쿠 한 정거장)",bed:"싱글 2",bath:"전용",fl:"1층 (엘리베이터 없음)",c:"24시간 내 무료 취소",r:"4.81 (169)",f:"'보통 예약이 꽉 차는 숙소' 표시.",chips:[["n","24시간 무료 취소"]],chk:0},
+ {n:"앨리스의 아파트 (니시신주쿠고초메)",s:"에어비앤비",u:ab("1020822547925512652"),p:323323,pt:"₩323,323",ll:[35.68579,139.68676],loc:"신주쿠구 (니시신주쿠고초메역 7분)",bed:"침대 2개 (종류 확인 필요)",bath:"전용",fl:"3층 건물, 엘리베이터 없음",c:"24시간 내 무료 취소",r:"4.65 (175)",f:"객실 이름이 '더블 베드 아파트 sj0242'. 수하물 보관 가능.",chips:[["n","침대 종류 확인"],["n","24시간 무료 취소"]],chk:1},
+ {n:"요코타 아파트 101 (히가시나카노)",s:"에어비앤비",u:ab("38182912"),p:331613,pt:"₩331,613",ll:[35.7068,139.6849],loc:"나카노구 (히가시나카노역 1분)",bed:"더블 1 + 싱글 1",bath:"전용",fl:"101호, 엘리베이터 확인 못 함",c:"24시간 내 무료 취소",r:"4.71 (574)",f:"2019년 준공. 신주쿠역 전철 5분.",chips:[["n","객실 '101' 선택"],["n","24시간 무료 취소"]],chk:0},
+ {n:"AN Yado (다테카와)",s:"Booking",u:bk("zaito-sumida-tatekawa-1"),p:334729,pt:"₩334,729",alt:"12/6까지 무료 취소 요금: ₩434,688",ll:[35.69056,139.80038],loc:"스미다구 다테카와",bed:"싱글 2 · 22㎡ · 간이주방",bath:"전용",fl:"확인 못 함",c:"12/2 전 무료 취소",r:"8.5 (25) · 청결 9.6",f:"'버짓 트윈룸'. 15% 할인. 남은 객실 1개. 신주쿠·시부야에서 먼 동쪽.",chips:[["a","12/2까지 무료 취소"],["n","층 확인"],["w","남은 객실 1개"]],chk:1},
+ {n:"M's GARDEN KIYOSUMI",s:"Booking",u:bk("s-garden-kiyosumi"),p:343954,pt:"₩343,954",ll:[35.68050,139.80983],loc:"고토구 미요시 (기요스미시라카와)",bed:"싱글 2 · 20㎡ · 간이주방",bath:"전용",fl:"확인 못 함",c:"환불 불가",r:"후기 없음",f:"11.11 세일 30%. 같은 이름의 더블+소파베드 객실이 있으니 싱글 2개 객실로 골라야 함.",chips:[["w","환불 불가"],["n","후기 없음"],["n","'싱글침대 2개' 아파트 선택"],["a","세일 중"]],chk:1},
+ {n:"마츠바라 맨션",s:"에어비앤비",u:ab("1638921293749150625"),p:351170,pt:"₩351,170",ll:[35.6704,139.6555],loc:"세타가야구 (다이타바시역 5분)",bed:"더블 2 · 29㎡ · 욕조",bath:"전용",fl:"엘리베이터 있음",c:"24시간 내 무료 취소, 이후 환불 없음",r:"4.72 (194)",f:"가장 넓음. 후기에 벽이 얇다는 언급.",chips:[["w","24시간 이후 환불 불가"]],chk:0},
+ {n:"FRt 에비스 2초메 305",s:"Booking",u:bk("frthui-bi-shou-2ding-mu-305"),p:357795,pt:"₩357,795",alt:"무료 취소 요금: ₩372,446 (11/25 전)",ll:[35.64737,139.72056],loc:"시부야구 에비스 (3층)",bed:"싱글 2 · 19㎡ · 다다미",bath:"전용",fl:"3층, 계단만",c:"가장 싼 요금은 환불 불가",r:"후기 없음",f:"11.11 세일 30%. 평점이 아직 없음.",chips:[["w","최저가는 환불 불가"],["n","후기 없음"],["a","세일 중"]],chk:0},
+ {n:"코너룸 트윈 베드·프로젝터",s:"에어비앤비",u:ab("1001424588782803944"),p:359801,pt:"₩359,801",ll:[35.69872,139.69001],loc:"신주쿠구",bed:"싱글 2",bath:"전용",fl:"확인 못 함",c:"24시간 내 무료 취소",r:"4.47 (74)",f:"2023년 부분 리모델링. 프로젝터.",chips:[["n","층 확인"],["n","24시간 무료 취소"]],chk:1},
+ {n:"쉐어스 도쿄 나카노사카우에 (에어비앤비)",s:"에어비앤비",u:ab("43055798"),p:364706,pt:"₩364,706",ll:[35.69753,139.68554],loc:"나카노구 (나카노사카우에역 3분)",bed:"싱글 2 + 바닥 이불 · 25㎡",bath:"전용",fl:"확인 못 함",c:"24시간 내 무료 취소",r:"4.84 (495)",f:"Booking의 Share's TOKYO와 같은 건물. 이쪽이 약 4만원 쌈.",chips:[["n","층 확인"],["n","24시간 무료 취소"]],chk:1},
+ {n:"Nishiwaseda-SJ0178",s:"Booking",u:bk("nishiwaseda-402"),p:383473,pt:"₩383,473",ll:[35.71214,139.71916],loc:"신주쿠구 니시와세다",bed:"싱글 2 · 21㎡ · 주방·발코니",bath:"전용",fl:"엘리베이터 있음",c:"환불 불가",r:"8.6 (187) · 청결 8.7",f:"같은 가격에 더블 객실도 있으니 싱글 2개 객실로 골라야 함.",chips:[["w","환불 불가"],["n","'싱글침대 2개' 스튜디오 선택"]],chk:0},
+ {n:"신주쿠 아파트 (와카마츠카와다)",s:"Booking",u:bk("shinjuku-tokyo-apartmentgun-near-wakamatsu-kawada-station"),p:386881,pt:"₩386,881",ll:[35.70204,139.72008],loc:"신주쿠구 와카마츠초",bed:"싱글 2 · 18㎡ · 발코니",bath:"전용",fl:"계단만, 층 확인 필요",c:"11/25 전 무료 취소",r:"8.5 (18)",f:"연말 특가 20%.",chips:[["a","11/25까지 무료 취소"],["w","계단만 · 층 확인"],["n","'트윈룸 - 발코니' 선택"]],chk:1},
+ {n:"신오쿠보 시티 호텔",s:"Booking",u:bk("shinokubo-city"),p:403460,pt:"₩403,460",alt:"객실 ₩369,838 + 추가 요금 ₩33,622",ll:[35.70050,139.70140],loc:"신주쿠구 햐쿠닌초",bed:"싱글 2 · 18㎡",bath:"전용",fl:"엘리베이터 없음, 층 확인 필요",c:"환불 불가",r:"8.0 (772)",f:"호텔. 남은 객실 1개.",chips:[["w","40만원 초과"],["w","환불 불가"],["w","엘리베이터 없음 · 층 확인"]],chk:1,over:1},
+ {n:"Share's TOKYO 나카노사카우에 (Booking)",s:"Booking",u:bk("share-39-s-tokyo"),p:408963,pt:"₩408,963",alt:"객실 ₩374,883 + 추가 요금 ₩34,080",ll:[35.69809,139.68445],loc:"나카노구 주오 (101호 주소)",bed:"싱글 2 + 바닥 이불 · 25㎡",bath:"전용",fl:"확인 못 함",c:"11/18 전 무료 취소",r:"8.5 (9) · 청결 9.1",f:"에어비앤비의 쉐어스 도쿄와 같은 건물. 취소 조건은 이쪽이 더 유연.",chips:[["w","40만원 초과"],["a","11/18까지 무료 취소"],["n","층 확인"]],chk:1,over:1}
+];
+H.sort((a,b)=>a.p-b.p).forEach((h,i)=>h.no=i+1);
+// 최종 후보: 18곳 비교 때 번호 3, 4, 5, 6, 9, 11 (번호 유지)
+const KEEP=new Set([3,4,5,6,9,11]);
+for(let i=H.length-1;i>=0;i--) if(!KEEP.has(H[i].no)) H.splice(i,1);
+const kind=h=>h.over?"over":(h.s==="Booking"?"bk":"ab");
+
+/* 지도 */
+const map=L.map("map",{scrollWheelZoom:true}).setView([35.695,139.735],12);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  maxZoom:19,
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자'
+}).addTo(map);
+const MK={};
+H.forEach(h=>{
+  const icon=L.divIcon({className:"",html:`<div class="mk ${kind(h)}"><span>${h.no}</span></div>`,iconSize:[30,30],iconAnchor:[15,30],popupAnchor:[0,-30]});
+  const m=L.marker(h.ll,{icon,title:`${h.no}. ${h.n}`,riseOnHover:true,zIndexOffset:-h.no}).addTo(map);
+  m.bindPopup(`<b>${h.no}. ${esc(h.n)}</b><br>${esc(h.pt)} · ${esc(h.s)}<br>${esc(h.loc)}<br><a href="${esc(h.u)}" target="_blank" rel="noopener">예약 페이지 열기</a> · <a href="#h${h.no}" data-go="${h.no}">카드 보기</a>`);
+  m.on("click",()=>focusCard(h.no,false));
+  MK[h.no]=m;
+});
+map.fitBounds(L.latLngBounds(H.map(h=>h.ll)).pad(0.08));
+map.on("popupopen",e=>{const a=e.popup.getElement().querySelector("[data-go]");if(a)a.addEventListener("click",ev=>{ev.preventDefault();focusCard(+a.dataset.go,true);});});
+
+function focusCard(no,scroll){
+  const h=H.find(x=>x.no===no); if(!h)return;
+  if((F!=="all"&&h.s!==F)||(OK&&h.chk)){F="all";OK=false;render();}
+  const el=document.getElementById("h"+no); if(!el)return;
+  if(scroll!==false||window.innerWidth>=980) el.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"});
+  el.classList.add("hl"); setTimeout(()=>el.classList.remove("hl"),1600);
+}
+function showOnMap(no){
+  const m=MK[no]; if(!m)return;
+  if(window.innerWidth<980) document.getElementById("map").scrollIntoView({behavior:"smooth",block:"start"});
+  map.flyTo(m.getLatLng(),15,{duration:.6}); setTimeout(()=>m.openPopup(),650);
+}
+
+/* 카드 */
+let F="all", OK=false;
+function render(){
+  const a=H.filter(h=>(F==="all"||h.s===F)&&(!OK||!h.chk));
+  document.getElementById("count").textContent=`${a.length}곳 · 싼 순`;
+  document.getElementById("list").innerHTML=a.map(h=>`
+  <article class="card" id="h${h.no}">
+    <div class="top"><button class="badge ${kind(h)==="bk"?"":kind(h)}" data-map="${h.no}" aria-label="${h.no}번 지도에서 보기">${h.no}</button>
+      <div class="ttl"><a class="name" href="${esc(h.u)}" target="_blank" rel="noopener">${esc(h.n)}</a><span class="site">${esc(h.s)}</span></div></div>
+    <div class="price">${esc(h.pt)}${h.alt?`<small>${esc(h.alt)}</small>`:""}</div>
+    <dl class="facts">
+      <div><dt>위치</dt><dd>${esc(h.loc)}</dd></div>
+      <div><dt>평점 (후기)</dt><dd>${esc(h.r)}</dd></div>
+      <div><dt>침대</dt><dd>${esc(h.bed)}</dd></div>
+      <div><dt>욕실</dt><dd>${esc(h.bath)}</dd></div>
+      <div><dt>층·엘리베이터</dt><dd>${esc(h.fl)}</dd></div>
+      <div><dt>취소</dt><dd>${esc(h.c)}</dd></div>
+    </dl>
+    <p class="feat">${esc(h.f)}</p>
+    ${h.chips.length?`<div class="chips">${h.chips.map(([t,l])=>`<span class="chip ${t}">${esc(l)}</span>`).join("")}</div>`:""}
+  </article>`).join("");
+  document.querySelectorAll("[data-f]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===F));
+  document.getElementById("f-ok").setAttribute("aria-pressed",OK);
+  document.querySelectorAll("[data-map]").forEach(b=>b.addEventListener("click",()=>showOnMap(+b.dataset.map)));
+}
+document.querySelectorAll("[data-f]").forEach(b=>b.addEventListener("click",()=>{F=b.dataset.f;render();}));
+document.getElementById("f-ok").addEventListener("click",()=>{OK=!OK;render();});
+render();
+</script>
+</body>
+</html>
